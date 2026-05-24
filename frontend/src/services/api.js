@@ -2,8 +2,8 @@ import axios from "axios";
 
 const API = axios.create({
 
-    baseURL:"https://mern-task-manager-production-0e30.up.railway.app/api"
-    
+    baseURL:
+        import.meta.env.VITE_API_URL
 });
 
 API.interceptors.request.use(
@@ -15,7 +15,6 @@ API.interceptors.request.use(
         if(token){
 
             req.headers.Authorization =
-
                 `Bearer ${token}`;
         }
 
