@@ -23,7 +23,6 @@ function EyeOff() {
     </svg>
   );
 }
-
 function SunIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -49,14 +48,48 @@ function Register() {
   const navigate = useNavigate();
   const { dark, toggle } = useTheme();
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", password: "" });
+  const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (e) =>
+  const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (errors[e.target.name]) {
+      setErrors({ ...errors, [e.target.name]: "" });
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Frontend validation
+    const fieldErrors = {};
+    if (!formData.name.trim()) {
+      fieldErrors.name = "Full name is required";
+    } else if (formData.name.trim().length < 2) {
+      fieldErrors.name = "Name must be at least 2 characters";
+    }
+    if (!formData.email.trim()) {
+      fieldErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      fieldErrors.email = "Enter a valid email address";
+    }
+    if (!formData.phone.trim()) {
+      fieldErrors.phone = "Phone number is required";
+    } else if (!/^\+?[\d\s\-]{7,15}$/.test(formData.phone.trim())) {
+      fieldErrors.phone = "Enter a valid phone number";
+    }
+    if (!formData.password) {
+      fieldErrors.password = "Password is required";
+    } else if (formData.password.length < 6) {
+      fieldErrors.password = "Password must be at least 6 characters";
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors);
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await API.post("/auth/register", formData);
@@ -90,39 +123,64 @@ function Register() {
           <h1 style={s.title}>Create account</h1>
           <p style={s.subtitle}>Get started for free</p>
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
+            {/* Name */}
             <div style={s.field}>
               <label style={s.label}>FULL NAME</label>
-              <input style={s.input} type="text" name="name"
-                placeholder="John Doe" value={formData.name}
-                onChange={handleChange} required />
+              <input
+                style={{ ...s.input, ...(errors.name ? s.inputError : {}) }}
+                type="text"
+                name="name"
+                placeholder="John Doe"
+                value={formData.name}
+                onChange={handleChange}
+              />
+              {errors.name && <p style={s.errorMsg}>{errors.name}</p>}
             </div>
 
+            {/* Email */}
             <div style={s.field}>
               <label style={s.label}>EMAIL ADDRESS</label>
-              <input style={s.input} type="email" name="email"
-                placeholder="you@example.com" value={formData.email}
-                onChange={handleChange} required />
+              <input
+                style={{ ...s.input, ...(errors.email ? s.inputError : {}) }}
+                type="email"
+                name="email"
+                placeholder="you@example.com"
+                value={formData.email}
+                onChange={handleChange}
+              />
+              {errors.email && <p style={s.errorMsg}>{errors.email}</p>}
             </div>
 
+            {/* Phone */}
             <div style={s.field}>
               <label style={s.label}>PHONE NUMBER</label>
-              <input style={s.input} type="text" name="phone"
-                placeholder="+91 98765 43210" value={formData.phone}
-                onChange={handleChange} required />
+              <input
+                style={{ ...s.input, ...(errors.phone ? s.inputError : {}) }}
+                type="text"
+                name="phone"
+                placeholder="+91 98765 43210"
+                value={formData.phone}
+                onChange={handleChange}
+              />
+              {errors.phone && <p style={s.errorMsg}>{errors.phone}</p>}
             </div>
 
+            {/* Password */}
             <div style={s.field}>
               <label style={s.label}>PASSWORD</label>
               <div style={s.inputWrap}>
                 <input
-                  style={{ ...s.input, paddingRight: "42px" }}
+                  style={{
+                    ...s.input,
+                    paddingRight: "42px",
+                    ...(errors.password ? s.inputError : {}),
+                  }}
                   type={showPassword ? "text" : "password"}
                   name="password"
-                  placeholder="••••••••"
+                  placeholder="Min. 6 characters"
                   value={formData.password}
                   onChange={handleChange}
-                  required
                 />
                 <button
                   type="button"
@@ -133,6 +191,7 @@ function Register() {
                   {showPassword ? <EyeOff /> : <EyeOpen />}
                 </button>
               </div>
+              {errors.password && <p style={s.errorMsg}>{errors.password}</p>}
             </div>
 
             <button
@@ -236,6 +295,15 @@ const s = {
     color: "var(--text-primary)",
     outline: "none",
     fontFamily: "inherit",
+  },
+  inputError: {
+    borderColor: "var(--danger)",
+  },
+  errorMsg: {
+    fontSize: "12px",
+    color: "var(--danger)",
+    marginTop: "5px",
+    marginBottom: "0",
   },
   eyeBtn: {
     position: "absolute",

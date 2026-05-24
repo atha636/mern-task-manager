@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import API from "../services/api";
 import { toast } from "react-toastify";
 import { useTheme } from "../context/ThemeContext";
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  Pending:     { dot: "#EF9F27", badge: { background: "#FAEEDA", color: "#854F0B" } },
+  Pending:      { dot: "#EF9F27", badge: { background: "#FAEEDA", color: "#854F0B" } },
   "In Progress":{ dot: "#378ADD", badge: { background: "#E6F1FB", color: "#185FA5" } },
-  Completed:   { dot: "#639922", badge: { background: "#EAF3DE", color: "#3B6D11" } },
+  Completed:    { dot: "#639922", badge: { background: "#EAF3DE", color: "#3B6D11" } },
 };
+
+const FILTERS = ["All", "Pending", "In Progress", "Completed"];
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -23,7 +25,7 @@ function getInitials(name = "") {
   return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 }
 
-// ── Sun / Moon icons ──────────────────────────────────────────────────────────
+// ── Icons ─────────────────────────────────────────────────────────────────────
 function SunIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -44,6 +46,14 @@ function MoonIcon() {
     </svg>
   );
 }
+function SearchIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
 
 // ── Confirmation Popup ────────────────────────────────────────────────────────
 function ConfirmPopup({ title, message, confirmLabel, confirmDanger, onConfirm, onCancel }) {
@@ -56,7 +66,10 @@ function ConfirmPopup({ title, message, confirmLabel, confirmDanger, onConfirm, 
           <button onClick={onCancel} style={popup.cancelBtn}>Cancel</button>
           <button
             onClick={onConfirm}
-            style={{ ...popup.confirmBtn, backgroundColor: confirmDanger ? "var(--danger)" : "var(--accent)" }}
+            style={{
+              ...popup.confirmBtn,
+              backgroundColor: confirmDanger ? "var(--danger)" : "var(--accent)",
+            }}
           >
             {confirmLabel}
           </button>
@@ -99,11 +112,7 @@ const popup = {
     marginBottom: "1.5rem",
     lineHeight: "1.5",
   },
-  actions: {
-    display: "flex",
-    gap: "8px",
-    justifyContent: "flex-end",
-  },
+  actions: { display: "flex", gap: "8px", justifyContent: "flex-end" },
   cancelBtn: {
     padding: "8px 18px",
     border: "1px solid var(--border)",
@@ -135,16 +144,32 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({ title: "", description: "", status: "Pending" });
+  const [formErrors, setFormErrors] = useState({});
+
+  // Filter & search state
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Popup state
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [deleteTargetId, setDeleteTargetId] = useState(null); // id of task pending deletion
+  const [deleteTargetId, setDeleteTargetId] = useState(null);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
 
-  // ── Logout ────────────────────────────────────────────────────────────────
-  const confirmLogout = () => setShowLogoutConfirm(true);
+  // ── Filtered + searched tasks (derived, no extra state) ───────────────────
+  const visibleTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      const matchesFilter = activeFilter === "All" || t.status === activeFilter;
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        t.title.toLowerCase().includes(q) ||
+        t.description.toLowerCase().includes(q);
+      return matchesFilter && matchesSearch;
+    });
+  }, [tasks, activeFilter, searchQuery]);
 
+  // ── Logout ────────────────────────────────────────────────────────────────
   const doLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -166,15 +191,32 @@ function Dashboard() {
   useEffect(() => { fetchTasks(); }, []);
 
   // ── Form ──────────────────────────────────────────────────────────────────
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (formErrors[e.target.name]) {
+      setFormErrors({ ...formErrors, [e.target.name]: "" });
+    }
+  };
+
+  const validateForm = () => {
+    const errs = {};
+    if (!formData.title.trim()) errs.title = "Title is required";
+    else if (formData.title.trim().length < 3) errs.title = "Title must be at least 3 characters";
+    if (!formData.description.trim()) errs.description = "Description is required";
+    else if (formData.description.trim().length < 5) errs.description = "Description must be at least 5 characters";
+    return errs;
+  };
 
   const resetForm = () => {
     setEditId(null);
     setFormData({ title: "", description: "", status: "Pending" });
+    setFormErrors({});
   };
 
   const createTask = async (e) => {
     e.preventDefault();
+    const errs = validateForm();
+    if (Object.keys(errs).length > 0) { setFormErrors(errs); return; }
     setSubmitting(true);
     try {
       const res = await API.post("/tasks", formData);
@@ -190,6 +232,8 @@ function Dashboard() {
 
   const updateTask = async (e) => {
     e.preventDefault();
+    const errs = validateForm();
+    if (Object.keys(errs).length > 0) { setFormErrors(errs); return; }
     setSubmitting(true);
     try {
       const res = await API.put(`/tasks/${editId}`, formData);
@@ -203,9 +247,7 @@ function Dashboard() {
     }
   };
 
-  // ── Delete with confirm ───────────────────────────────────────────────────
-  const requestDelete = (id) => setDeleteTargetId(id);
-
+  // ── Delete ────────────────────────────────────────────────────────────────
   const doDelete = async () => {
     try {
       await API.delete(`/tasks/${deleteTargetId}`);
@@ -221,9 +263,11 @@ function Dashboard() {
   const handleEdit = (task) => {
     setEditId(task._id);
     setFormData({ title: task.title, description: task.description, status: task.status });
+    setFormErrors({});
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // Stats (always from full tasks list, not filtered)
   const total      = tasks.length;
   const inProgress = tasks.filter((t) => t.status === "In Progress").length;
   const completed  = tasks.filter((t) => t.status === "Completed").length;
@@ -231,7 +275,7 @@ function Dashboard() {
   return (
     <div style={s.page}>
 
-      {/* ── Logout confirmation popup ── */}
+      {/* ── Logout popup ── */}
       {showLogoutConfirm && (
         <ConfirmPopup
           title="Sign out?"
@@ -243,7 +287,7 @@ function Dashboard() {
         />
       )}
 
-      {/* ── Delete confirmation popup ── */}
+      {/* ── Delete popup ── */}
       {deleteTargetId && (
         <ConfirmPopup
           title="Delete task?"
@@ -267,21 +311,22 @@ function Dashboard() {
             </div>
             <span style={s.brandName}>TaskFlow</span>
           </div>
-
           <div style={s.headerRight}>
-            {/* Theme toggle */}
             <button onClick={toggle} style={s.themeBtn} title="Toggle theme">
               {dark ? <SunIcon /> : <MoonIcon />}
             </button>
             <div style={s.avatar}>{getInitials(user.name)}</div>
             <span style={s.userName}>{user.name || "User"}</span>
-            <button onClick={confirmLogout} style={s.logoutBtn}>Sign out</button>
+            <button onClick={() => setShowLogoutConfirm(true)} style={s.logoutBtn}>
+              Sign out
+            </button>
           </div>
         </div>
       </header>
 
       {/* ── Body ── */}
       <main style={s.body}>
+
         {/* Stats */}
         <div style={s.stats}>
           <div style={s.statCard}>
@@ -302,19 +347,19 @@ function Dashboard() {
         <div style={s.section}>
           <p style={s.sectionTitle}>{editId ? "Edit task" : "New task"}</p>
           <div style={s.formCard}>
-            <form onSubmit={editId ? updateTask : createTask}>
+            <form onSubmit={editId ? updateTask : createTask} noValidate>
               <div style={s.formRow}>
                 <div style={{ flex: 2 }}>
                   <label style={s.label}>TITLE</label>
                   <input
-                    style={s.input}
+                    style={{ ...s.input, ...(formErrors.title ? s.inputError : {}) }}
                     type="text"
                     name="title"
                     placeholder="What needs to be done?"
                     value={formData.title}
                     onChange={handleChange}
-                    required
                   />
+                  {formErrors.title && <p style={s.errorMsg}>{formErrors.title}</p>}
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={s.label}>STATUS</label>
@@ -326,23 +371,28 @@ function Dashboard() {
                 </div>
               </div>
 
-              <div style={{ marginBottom: "1rem" }}>
+              <div style={{ marginBottom: formErrors.description ? "0.25rem" : "1rem" }}>
                 <label style={s.label}>DESCRIPTION</label>
                 <textarea
-                  style={{ ...s.input, minHeight: "78px", resize: "vertical" }}
+                  style={{
+                    ...s.input,
+                    minHeight: "78px",
+                    resize: "vertical",
+                    ...(formErrors.description ? s.inputError : {}),
+                  }}
                   name="description"
                   placeholder="Add some details..."
                   value={formData.description}
                   onChange={handleChange}
-                  required
                 />
+                {formErrors.description && (
+                  <p style={{ ...s.errorMsg, marginBottom: "0.75rem" }}>{formErrors.description}</p>
+                )}
               </div>
 
               <div style={s.formFooter}>
                 {editId && (
-                  <button type="button" onClick={resetForm} style={s.cancelBtn}>
-                    Cancel
-                  </button>
+                  <button type="button" onClick={resetForm} style={s.cancelBtn}>Cancel</button>
                 )}
                 <button
                   type="submit"
@@ -358,15 +408,62 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* Task list */}
+        {/* Search + Filter bar */}
         <div style={s.section}>
           <p style={s.sectionTitle}>Your tasks</p>
 
+          <div style={s.searchFilterRow}>
+            {/* Search */}
+            <div style={s.searchWrap}>
+              <span style={s.searchIcon}><SearchIcon /></span>
+              <input
+                style={s.searchInput}
+                type="text"
+                placeholder="Search tasks..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  style={s.clearBtn}
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Filter pills */}
+            <div style={s.filterPills}>
+              {FILTERS.map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setActiveFilter(f)}
+                  style={{
+                    ...s.pill,
+                    ...(activeFilter === f ? s.pillActive : {}),
+                  }}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Results count */}
+          {(searchQuery || activeFilter !== "All") && (
+            <p style={s.resultCount}>
+              {visibleTasks.length} task{visibleTasks.length !== 1 ? "s" : ""} found
+            </p>
+          )}
+
+          {/* Task list */}
           {loading ? (
             <div style={s.emptyState}>
               <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>Loading tasks...</p>
             </div>
-          ) : tasks.length === 0 ? (
+          ) : visibleTasks.length === 0 ? (
             <div style={s.emptyState}>
               <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
                 stroke="var(--text-faint)" strokeWidth="1.5" style={{ marginBottom: "10px" }}>
@@ -374,15 +471,20 @@ function Dashboard() {
                 <path d="M16 2v4M8 2v4M3 10h18" />
               </svg>
               <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>
-                No tasks yet. Add your first one above.
+                {tasks.length === 0
+                  ? "No tasks yet. Add your first one above."
+                  : "No tasks match your search or filter."}
               </p>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {tasks.map((task) => {
+              {visibleTasks.map((task) => {
                 const cfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.Pending;
                 return (
-                  <div key={task._id} style={{ ...s.taskCard, borderLeft: `3px solid ${cfg.dot}` }}>
+                  <div
+                    key={task._id}
+                    style={{ ...s.taskCard, borderLeft: `3px solid ${cfg.dot}` }}
+                  >
                     <div style={{ flex: 1 }}>
                       <div style={s.taskHeader}>
                         <h4 style={s.taskTitle}>{task.title}</h4>
@@ -403,7 +505,7 @@ function Dashboard() {
                         </svg>
                       </button>
                       <button
-                        onClick={() => requestDelete(task._id)}
+                        onClick={() => setDeleteTargetId(task._id)}
                         style={{ ...s.iconBtn, color: "var(--danger)" }}
                         title="Delete task"
                       >
@@ -448,39 +550,28 @@ const s = {
   },
   brand: { display: "flex", alignItems: "center", gap: "9px" },
   brandIcon: {
-    width: "28px",
-    height: "28px",
+    width: "28px", height: "28px",
     backgroundColor: "var(--accent)",
     borderRadius: "7px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+    display: "flex", alignItems: "center", justifyContent: "center",
   },
   brandName: { fontSize: "16px", fontWeight: "600", color: "var(--text-primary)", letterSpacing: "-0.02em" },
   headerRight: { display: "flex", alignItems: "center", gap: "10px" },
   themeBtn: {
-    width: "32px",
-    height: "32px",
+    width: "32px", height: "32px",
     borderRadius: "7px",
     border: "1px solid var(--border)",
     backgroundColor: "var(--bg-input)",
     color: "var(--toggle-icon)",
     cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+    display: "flex", alignItems: "center", justifyContent: "center",
   },
   avatar: {
-    width: "32px",
-    height: "32px",
+    width: "32px", height: "32px",
     borderRadius: "50%",
     backgroundColor: "var(--bg-avatar)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "12px",
-    fontWeight: "600",
-    color: "var(--accent-text)",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    fontSize: "12px", fontWeight: "600", color: "var(--accent-text)",
   },
   userName: { fontSize: "13px", color: "var(--text-secondary)", fontWeight: "500" },
   logoutBtn: {
@@ -488,10 +579,8 @@ const s = {
     border: "1px solid var(--border)",
     borderRadius: "7px",
     backgroundColor: "transparent",
-    fontSize: "12px",
-    color: "var(--text-secondary)",
-    cursor: "pointer",
-    fontFamily: "inherit",
+    fontSize: "12px", color: "var(--text-secondary)",
+    cursor: "pointer", fontFamily: "inherit",
   },
   body: { maxWidth: "900px", margin: "0 auto", padding: "1.75rem 1.5rem 3rem" },
   stats: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "1.75rem" },
@@ -514,38 +603,99 @@ const s = {
   formRow: { display: "flex", gap: "12px", marginBottom: "12px", flexWrap: "wrap" },
   label: { display: "block", fontSize: "10px", fontWeight: "700", color: "var(--text-muted)", letterSpacing: "0.07em", marginBottom: "6px" },
   input: {
-    width: "100%",
-    padding: "9px 12px",
+    width: "100%", padding: "9px 12px",
     backgroundColor: "var(--bg-input)",
     border: "1px solid var(--border)",
     borderRadius: "8px",
-    fontSize: "14px",
-    color: "var(--text-primary)",
-    outline: "none",
-    fontFamily: "inherit",
+    fontSize: "14px", color: "var(--text-primary)",
+    outline: "none", fontFamily: "inherit",
   },
+  inputError: { borderColor: "var(--danger)" },
+  errorMsg: { fontSize: "12px", color: "var(--danger)", marginTop: "5px", marginBottom: "0" },
   formFooter: { display: "flex", justifyContent: "flex-end", gap: "8px" },
   cancelBtn: {
     padding: "8px 18px",
     border: "1px solid var(--border)",
+    borderRadius: "8px", backgroundColor: "transparent",
+    fontSize: "13px", fontWeight: "500", color: "var(--text-secondary)",
+    cursor: "pointer", fontFamily: "inherit",
+  },
+  submitBtn: {
+    padding: "8px 20px",
+    backgroundColor: "var(--accent)", border: "none",
+    borderRadius: "8px", color: "#ffffff",
+    fontSize: "13px", fontWeight: "600",
+    cursor: "pointer", fontFamily: "inherit",
+  },
+  // Search + filter
+  searchFilterRow: {
+    display: "flex",
+    gap: "10px",
+    marginBottom: "12px",
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  searchWrap: {
+    position: "relative",
+    flex: 1,
+    minWidth: "180px",
+  },
+  searchIcon: {
+    position: "absolute",
+    left: "11px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    color: "var(--text-muted)",
+    display: "flex",
+    alignItems: "center",
+    pointerEvents: "none",
+  },
+  searchInput: {
+    width: "100%",
+    padding: "8px 34px 8px 34px",
+    backgroundColor: "var(--bg-card)",
+    border: "1px solid var(--border)",
     borderRadius: "8px",
-    backgroundColor: "transparent",
     fontSize: "13px",
+    color: "var(--text-primary)",
+    outline: "none",
+    fontFamily: "inherit",
+  },
+  clearBtn: {
+    position: "absolute",
+    right: "10px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "var(--text-muted)",
+    fontSize: "12px",
+    padding: "0",
+    lineHeight: 1,
+  },
+  filterPills: { display: "flex", gap: "6px", flexWrap: "wrap" },
+  pill: {
+    padding: "6px 13px",
+    borderRadius: "20px",
+    border: "1px solid var(--border)",
+    backgroundColor: "var(--bg-card)",
+    fontSize: "12px",
     fontWeight: "500",
     color: "var(--text-secondary)",
     cursor: "pointer",
     fontFamily: "inherit",
+    whiteSpace: "nowrap",
   },
-  submitBtn: {
-    padding: "8px 20px",
+  pillActive: {
     backgroundColor: "var(--accent)",
-    border: "none",
-    borderRadius: "8px",
+    borderColor: "var(--accent)",
     color: "#ffffff",
-    fontSize: "13px",
-    fontWeight: "600",
-    cursor: "pointer",
-    fontFamily: "inherit",
+  },
+  resultCount: {
+    fontSize: "12px",
+    color: "var(--text-muted)",
+    marginBottom: "10px",
   },
   emptyState: {
     backgroundColor: "var(--bg-card)",
@@ -553,18 +703,14 @@ const s = {
     borderRadius: "14px",
     padding: "2.5rem",
     textAlign: "center",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
+    display: "flex", flexDirection: "column", alignItems: "center",
   },
   taskCard: {
     backgroundColor: "var(--bg-card)",
     border: "1px solid var(--border)",
     borderRadius: "12px",
     padding: "1rem 1.25rem",
-    display: "flex",
-    alignItems: "flex-start",
-    gap: "1rem",
+    display: "flex", alignItems: "flex-start", gap: "1rem",
     borderLeftWidth: "3px",
   },
   taskHeader: { display: "flex", alignItems: "center", gap: "10px", marginBottom: "5px", flexWrap: "wrap" },
@@ -574,16 +720,11 @@ const s = {
   taskMeta: { fontSize: "11px", color: "var(--text-faint)" },
   taskActions: { display: "flex", gap: "6px", flexShrink: 0, paddingTop: "2px" },
   iconBtn: {
-    width: "30px",
-    height: "30px",
+    width: "30px", height: "30px",
     border: "1px solid var(--border)",
-    borderRadius: "7px",
-    backgroundColor: "transparent",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    color: "var(--text-secondary)",
+    borderRadius: "7px", backgroundColor: "transparent",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    cursor: "pointer", color: "var(--text-secondary)",
   },
 };
 

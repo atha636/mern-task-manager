@@ -4,7 +4,6 @@ import API from "../services/api";
 import { toast } from "react-toastify";
 import { useTheme } from "../context/ThemeContext";
 
-// ── Eye icons ────────────────────────────────────────────────────────────────
 function EyeOpen() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -24,21 +23,15 @@ function EyeOff() {
     </svg>
   );
 }
-
-// ── Sun / Moon icons ─────────────────────────────────────────────────────────
 function SunIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="5" />
-      <line x1="12" y1="1" x2="12" y2="3" />
-      <line x1="12" y1="21" x2="12" y2="23" />
-      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-      <line x1="1" y1="12" x2="3" y2="12" />
-      <line x1="21" y1="12" x2="23" y2="12" />
-      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
     </svg>
   );
 }
@@ -51,19 +44,52 @@ function MoonIcon() {
   );
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
+// ── Validation ────────────────────────────────────────────────────────────────
+function validateLogin({ email, password }) {
+  if (!email.trim()) return "Email is required";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Enter a valid email address";
+  if (!password) return "Password is required";
+  if (password.length < 6) return "Password must be at least 6 characters";
+  return null;
+}
+
 function Login() {
   const navigate = useNavigate();
   const { dark, toggle } = useTheme();
   const [formData, setFormData] = useState({ email: "", password: "" });
+  const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (e) =>
+  const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    // Clear error for this field as user types
+    if (errors[e.target.name]) {
+      setErrors({ ...errors, [e.target.name]: "" });
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Frontend validation
+    const fieldErrors = {};
+    if (!formData.email.trim()) {
+      fieldErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      fieldErrors.email = "Enter a valid email address";
+    }
+    if (!formData.password) {
+      fieldErrors.password = "Password is required";
+    } else if (formData.password.length < 6) {
+      fieldErrors.password = "Password must be at least 6 characters";
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors);
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await API.post("/auth/login", formData);
@@ -80,13 +106,11 @@ function Login() {
 
   return (
     <div style={s.page}>
-      {/* Theme toggle — top right */}
       <button onClick={toggle} style={s.themeBtn} title="Toggle theme">
         {dark ? <SunIcon /> : <MoonIcon />}
       </button>
 
       <div style={s.container}>
-        {/* Brand */}
         <div style={s.brand}>
           <div style={s.brandIcon}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -101,31 +125,36 @@ function Login() {
           <h1 style={s.title}>Welcome back</h1>
           <p style={s.subtitle}>Sign in to your account to continue</p>
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
+            {/* Email */}
             <div style={s.field}>
               <label style={s.label}>EMAIL ADDRESS</label>
               <input
-                style={s.input}
+                style={{ ...s.input, ...(errors.email ? s.inputError : {}) }}
                 type="email"
                 name="email"
                 placeholder="you@example.com"
                 value={formData.email}
                 onChange={handleChange}
-                required
               />
+              {errors.email && <p style={s.errorMsg}>{errors.email}</p>}
             </div>
 
+            {/* Password */}
             <div style={s.field}>
               <label style={s.label}>PASSWORD</label>
               <div style={s.inputWrap}>
                 <input
-                  style={{ ...s.input, paddingRight: "42px" }}
+                  style={{
+                    ...s.input,
+                    paddingRight: "42px",
+                    ...(errors.password ? s.inputError : {}),
+                  }}
                   type={showPassword ? "text" : "password"}
                   name="password"
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={handleChange}
-                  required
                 />
                 <button
                   type="button"
@@ -136,6 +165,7 @@ function Login() {
                   {showPassword ? <EyeOff /> : <EyeOpen />}
                 </button>
               </div>
+              {errors.password && <p style={s.errorMsg}>{errors.password}</p>}
             </div>
 
             <button
@@ -239,6 +269,15 @@ const s = {
     color: "var(--text-primary)",
     outline: "none",
     fontFamily: "inherit",
+  },
+  inputError: {
+    borderColor: "var(--danger)",
+  },
+  errorMsg: {
+    fontSize: "12px",
+    color: "var(--danger)",
+    marginTop: "5px",
+    marginBottom: "0",
   },
   eyeBtn: {
     position: "absolute",

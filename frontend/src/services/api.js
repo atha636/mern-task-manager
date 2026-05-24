@@ -6,6 +6,7 @@ const API = axios.create({
         import.meta.env.VITE_API_URL
 });
 
+// Attach token to every request
 API.interceptors.request.use(
 
     (req)=>{
@@ -19,6 +20,26 @@ API.interceptors.request.use(
         }
 
         return req;
+    }
+);
+
+// If token is expired or invalid → auto logout and redirect to login
+API.interceptors.response.use(
+
+    (res) => res,
+
+    (error) => {
+
+        if(error.response?.status === 401){
+
+            localStorage.removeItem("token");
+
+            localStorage.removeItem("user");
+
+            window.location.href = "/";
+        }
+
+        return Promise.reject(error);
     }
 );
 
