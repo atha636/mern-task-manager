@@ -2,10 +2,61 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import API from "../services/api";
 import { toast } from "react-toastify";
+import { useTheme } from "../context/ThemeContext";
 
+// ── Eye icons ────────────────────────────────────────────────────────────────
+function EyeOpen() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+function EyeOff() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  );
+}
+
+// ── Sun / Moon icons ─────────────────────────────────────────────────────────
+function SunIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="5" />
+      <line x1="12" y1="1" x2="12" y2="3" />
+      <line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" />
+      <line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+    </svg>
+  );
+}
+function MoonIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  );
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
 function Login() {
   const navigate = useNavigate();
+  const { dark, toggle } = useTheme();
   const [formData, setFormData] = useState({ email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) =>
@@ -28,27 +79,33 @@ function Login() {
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
+    <div style={s.page}>
+      {/* Theme toggle — top right */}
+      <button onClick={toggle} style={s.themeBtn} title="Toggle theme">
+        {dark ? <SunIcon /> : <MoonIcon />}
+      </button>
+
+      <div style={s.container}>
         {/* Brand */}
-        <div style={styles.brand}>
-          <div style={styles.brandIcon}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <div style={s.brand}>
+          <div style={s.brandIcon}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
-          <span style={styles.brandName}>TaskFlow</span>
+          <span style={s.brandName}>TaskFlow</span>
         </div>
 
-        <div style={styles.card}>
-          <h1 style={styles.title}>Welcome back</h1>
-          <p style={styles.subtitle}>Sign in to your account to continue</p>
+        <div style={s.card}>
+          <h1 style={s.title}>Welcome back</h1>
+          <p style={s.subtitle}>Sign in to your account to continue</p>
 
           <form onSubmit={handleSubmit}>
-            <div style={styles.field}>
-              <label style={styles.label}>EMAIL ADDRESS</label>
+            <div style={s.field}>
+              <label style={s.label}>EMAIL ADDRESS</label>
               <input
-                style={styles.input}
+                style={s.input}
                 type="email"
                 name="email"
                 placeholder="you@example.com"
@@ -58,33 +115,41 @@ function Login() {
               />
             </div>
 
-            <div style={styles.field}>
-              <label style={styles.label}>PASSWORD</label>
-              <input
-                style={styles.input}
-                type="password"
-                name="password"
-                placeholder="••••••••"
-                value={formData.password}
-                onChange={handleChange}
-                required
-              />
+            <div style={s.field}>
+              <label style={s.label}>PASSWORD</label>
+              <div style={s.inputWrap}>
+                <input
+                  style={{ ...s.input, paddingRight: "42px" }}
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  placeholder="••••••••"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  style={s.eyeBtn}
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff /> : <EyeOpen />}
+                </button>
+              </div>
             </div>
 
             <button
               type="submit"
-              style={{ ...styles.btn, opacity: loading ? 0.7 : 1 }}
+              style={{ ...s.btn, opacity: loading ? 0.7 : 1 }}
               disabled={loading}
             >
               {loading ? "Signing in..." : "Sign in"}
             </button>
           </form>
 
-          <p style={styles.footer}>
+          <p style={s.footer}>
             Don't have an account?{" "}
-            <Link to="/register" style={styles.link}>
-              Create one
-            </Link>
+            <Link to="/register" style={s.link}>Create one</Link>
           </p>
         </div>
       </div>
@@ -92,19 +157,32 @@ function Login() {
   );
 }
 
-const styles = {
+const s = {
   page: {
     minHeight: "100vh",
-    backgroundColor: "#F5F4F0",
+    backgroundColor: "var(--bg-page)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     padding: "2rem 1rem",
+    position: "relative",
   },
-  container: {
-    width: "100%",
-    maxWidth: "420px",
+  themeBtn: {
+    position: "fixed",
+    top: "1.25rem",
+    right: "1.25rem",
+    width: "36px",
+    height: "36px",
+    borderRadius: "8px",
+    border: "1px solid var(--border)",
+    backgroundColor: "var(--bg-card)",
+    color: "var(--toggle-icon)",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
+  container: { width: "100%", maxWidth: "420px" },
   brand: {
     display: "flex",
     alignItems: "center",
@@ -115,7 +193,7 @@ const styles = {
   brandIcon: {
     width: "34px",
     height: "34px",
-    backgroundColor: "#534AB7",
+    backgroundColor: "var(--accent)",
     borderRadius: "9px",
     display: "flex",
     alignItems: "center",
@@ -124,54 +202,61 @@ const styles = {
   brandName: {
     fontSize: "18px",
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: "var(--text-primary)",
     letterSpacing: "-0.02em",
   },
   card: {
-    backgroundColor: "#ffffff",
-    border: "1px solid #E8E6DF",
+    backgroundColor: "var(--bg-card)",
+    border: "1px solid var(--border)",
     borderRadius: "16px",
     padding: "2.25rem 2rem",
   },
   title: {
     fontSize: "22px",
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: "var(--text-primary)",
     marginBottom: "6px",
     letterSpacing: "-0.02em",
   },
-  subtitle: {
-    fontSize: "14px",
-    color: "#888780",
-    marginBottom: "1.75rem",
-  },
-  field: {
-    marginBottom: "1.1rem",
-  },
+  subtitle: { fontSize: "14px", color: "var(--text-muted)", marginBottom: "1.75rem" },
+  field: { marginBottom: "1.1rem" },
   label: {
     display: "block",
     fontSize: "11px",
     fontWeight: "600",
-    color: "#888780",
+    color: "var(--text-muted)",
     letterSpacing: "0.06em",
     marginBottom: "6px",
   },
+  inputWrap: { position: "relative" },
   input: {
     width: "100%",
     padding: "10px 13px",
-    backgroundColor: "#F9F8F5",
-    border: "1px solid #E8E6DF",
+    backgroundColor: "var(--bg-input)",
+    border: "1px solid var(--border)",
     borderRadius: "9px",
     fontSize: "14px",
-    color: "#1a1a1a",
+    color: "var(--text-primary)",
     outline: "none",
     fontFamily: "inherit",
-    transition: "border-color 0.15s",
+  },
+  eyeBtn: {
+    position: "absolute",
+    right: "12px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "var(--text-muted)",
+    display: "flex",
+    alignItems: "center",
+    padding: "0",
   },
   btn: {
     width: "100%",
     padding: "11px",
-    backgroundColor: "#534AB7",
+    backgroundColor: "var(--accent)",
     border: "none",
     borderRadius: "9px",
     color: "#ffffff",
@@ -180,19 +265,15 @@ const styles = {
     cursor: "pointer",
     marginTop: "0.5rem",
     letterSpacing: "0.01em",
-    transition: "background-color 0.15s",
+    fontFamily: "inherit",
   },
   footer: {
     textAlign: "center",
     fontSize: "13px",
-    color: "#888780",
+    color: "var(--text-muted)",
     marginTop: "1.25rem",
   },
-  link: {
-    color: "#534AB7",
-    fontWeight: "600",
-    textDecoration: "none",
-  },
+  link: { color: "var(--accent-text)", fontWeight: "600", textDecoration: "none" },
 };
 
 export default Login;
