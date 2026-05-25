@@ -13,7 +13,7 @@ const app = express();
 
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://mern-task-manager-y9ib.vercel.app"
+  "https://task-manager-mern-eight-wine.vercel.app/"
 ];
 
 app.use(
