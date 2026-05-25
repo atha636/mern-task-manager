@@ -25,6 +25,25 @@ function getInitials(name = "") {
   return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 }
 
+// ── Helper: delay ─────────────────────────────────────────────────────────────
+const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+
+// ── Spinner ───────────────────────────────────────────────────────────────────
+function Spinner({ size = 14, color = "#ffffff" }) {
+  return (
+    <svg
+      width={size} height={size}
+      viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth="2.5"
+      strokeLinecap="round"
+      style={{ animation: "spin 0.7s linear infinite", flexShrink: 0 }}
+    >
+      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </svg>
+  );
+}
+
 // ── Icons ─────────────────────────────────────────────────────────────────────
 function SunIcon() {
   return (
@@ -57,21 +76,42 @@ function SearchIcon() {
 
 // ── Confirmation Popup ────────────────────────────────────────────────────────
 function ConfirmPopup({ title, message, confirmLabel, confirmDanger, onConfirm, onCancel }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    await delay(1000);
+    onConfirm();
+    // Note: don't setLoading(false) here — popup unmounts after onConfirm
+  };
+
   return (
     <div style={popup.overlay}>
       <div style={popup.box}>
         <h3 style={popup.title}>{title}</h3>
         <p style={popup.message}>{message}</p>
         <div style={popup.actions}>
-          <button onClick={onCancel} style={popup.cancelBtn}>Cancel</button>
+          <button onClick={onCancel} style={popup.cancelBtn} disabled={loading}>Cancel</button>
           <button
-            onClick={onConfirm}
+            onClick={handleConfirm}
+            disabled={loading}
             style={{
               ...popup.confirmBtn,
               backgroundColor: confirmDanger ? "var(--danger)" : "var(--accent)",
+              opacity: loading ? 0.85 : 1,
+              display: "flex",
+              alignItems: "center",
+              gap: "7px",
+              minWidth: "90px",
+              justifyContent: "center",
             }}
           >
-            {confirmLabel}
+            {loading ? (
+              <>
+                <Spinner size={13} color="#fff" />
+                {confirmDanger ? "Deleting..." : "Signing out..."}
+              </>
+            ) : confirmLabel}
           </button>
         </div>
       </div>
@@ -146,6 +186,11 @@ function Dashboard() {
   const [formData, setFormData] = useState({ title: "", description: "", status: "Pending" });
   const [formErrors, setFormErrors] = useState({});
 
+  // Edit button loading per task
+  const [editLoadingId, setEditLoadingId] = useState(null);
+  // Delete button loading per task (icon button)
+  const [deleteLoadingId, setDeleteLoadingId] = useState(null);
+
   // Filter & search state
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -156,7 +201,7 @@ function Dashboard() {
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
 
-  // ── Filtered + searched tasks (derived, no extra state) ───────────────────
+  // ── Filtered + searched tasks ─────────────────────────────────────────────
   const visibleTasks = useMemo(() => {
     return tasks.filter((t) => {
       const matchesFilter = activeFilter === "All" || t.status === activeFilter;
@@ -219,6 +264,7 @@ function Dashboard() {
     if (Object.keys(errs).length > 0) { setFormErrors(errs); return; }
     setSubmitting(true);
     try {
+      await delay(1000); // 1 sec loading feel
       const res = await API.post("/tasks", formData);
       setTasks([res.data.task, ...tasks]);
       resetForm();
@@ -236,6 +282,7 @@ function Dashboard() {
     if (Object.keys(errs).length > 0) { setFormErrors(errs); return; }
     setSubmitting(true);
     try {
+      await delay(1000); // 1 sec loading feel
       const res = await API.put(`/tasks/${editId}`, formData);
       setTasks(tasks.map((t) => (t._id === editId ? res.data.updatedTask : t)));
       resetForm();
@@ -260,14 +307,26 @@ function Dashboard() {
     }
   };
 
-  const handleEdit = (task) => {
+  // Edit button: 1 sec delay before opening form
+  const handleEdit = async (task) => {
+    setEditLoadingId(task._id);
+    await delay(1000);
+    setEditLoadingId(null);
     setEditId(task._id);
     setFormData({ title: task.title, description: task.description, status: task.status });
     setFormErrors({});
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Stats (always from full tasks list, not filtered)
+  // Delete icon button: show loading on icon, then open confirm popup
+  const handleDeleteClick = async (taskId) => {
+    setDeleteLoadingId(taskId);
+    await delay(1000);
+    setDeleteLoadingId(null);
+    setDeleteTargetId(taskId);
+  };
+
+  // Stats
   const total      = tasks.length;
   const inProgress = tasks.filter((t) => t.status === "In Progress").length;
   const completed  = tasks.filter((t) => t.status === "Completed").length;
@@ -396,12 +455,25 @@ function Dashboard() {
                 )}
                 <button
                   type="submit"
-                  style={{ ...s.submitBtn, opacity: submitting ? 0.7 : 1 }}
+                  style={{
+                    ...s.submitBtn,
+                    opacity: submitting ? 0.85 : 1,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "7px",
+                    minWidth: "110px",
+                    justifyContent: "center",
+                  }}
                   disabled={submitting}
                 >
-                  {submitting
-                    ? editId ? "Saving..." : "Adding..."
-                    : editId ? "Save changes" : "Add task"}
+                  {submitting ? (
+                    <>
+                      <Spinner size={13} color="#fff" />
+                      {editId ? "Saving..." : "Adding..."}
+                    </>
+                  ) : (
+                    editId ? "Save changes" : "Add task"
+                  )}
                 </button>
               </div>
             </form>
@@ -413,7 +485,6 @@ function Dashboard() {
           <p style={s.sectionTitle}>Your tasks</p>
 
           <div style={s.searchFilterRow}>
-            {/* Search */}
             <div style={s.searchWrap}>
               <span style={s.searchIcon}><SearchIcon /></span>
               <input
@@ -434,7 +505,6 @@ function Dashboard() {
               )}
             </div>
 
-            {/* Filter pills */}
             <div style={s.filterPills}>
               {FILTERS.map((f) => (
                 <button
@@ -451,7 +521,6 @@ function Dashboard() {
             </div>
           </div>
 
-          {/* Results count */}
           {(searchQuery || activeFilter !== "All") && (
             <p style={s.resultCount}>
               {visibleTasks.length} task{visibleTasks.length !== 1 ? "s" : ""} found
@@ -480,6 +549,9 @@ function Dashboard() {
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {visibleTasks.map((task) => {
                 const cfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.Pending;
+                const isEditLoading = editLoadingId === task._id;
+                const isDeleteLoading = deleteLoadingId === task._id;
+
                 return (
                   <div
                     key={task._id}
@@ -497,25 +569,51 @@ function Dashboard() {
                     </div>
 
                     <div style={s.taskActions}>
-                      <button onClick={() => handleEdit(task)} style={s.iconBtn} title="Edit task">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                      </button>
+                      {/* Edit button */}
                       <button
-                        onClick={() => setDeleteTargetId(task._id)}
-                        style={{ ...s.iconBtn, color: "var(--danger)" }}
+                        onClick={() => handleEdit(task)}
+                        disabled={isEditLoading || isDeleteLoading}
+                        style={{
+                          ...s.iconBtn,
+                          opacity: isEditLoading ? 0.7 : 1,
+                          backgroundColor: isEditLoading ? "var(--bg-input)" : "transparent",
+                        }}
+                        title="Edit task"
+                      >
+                        {isEditLoading ? (
+                          <Spinner size={13} color="var(--text-secondary)" />
+                        ) : (
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        )}
+                      </button>
+
+                      {/* Delete button */}
+                      <button
+                        onClick={() => handleDeleteClick(task._id)}
+                        disabled={isDeleteLoading || isEditLoading}
+                        style={{
+                          ...s.iconBtn,
+                          color: "var(--danger)",
+                          opacity: isDeleteLoading ? 0.7 : 1,
+                          backgroundColor: isDeleteLoading ? "var(--bg-input)" : "transparent",
+                        }}
                         title="Delete task"
                       >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                          <path d="M10 11v6M14 11v6" />
-                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                        </svg>
+                        {isDeleteLoading ? (
+                          <Spinner size={13} color="var(--danger)" />
+                        ) : (
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                            <path d="M10 11v6M14 11v6" />
+                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                          </svg>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -627,7 +725,6 @@ const s = {
     fontSize: "13px", fontWeight: "600",
     cursor: "pointer", fontFamily: "inherit",
   },
-  // Search + filter
   searchFilterRow: {
     display: "flex",
     gap: "10px",
@@ -725,6 +822,7 @@ const s = {
     borderRadius: "7px", backgroundColor: "transparent",
     display: "flex", alignItems: "center", justifyContent: "center",
     cursor: "pointer", color: "var(--text-secondary)",
+    transition: "opacity 0.2s",
   },
 };
 
