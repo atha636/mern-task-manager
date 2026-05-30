@@ -118,7 +118,7 @@ function Login() {
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
-          <span style={s.brandName}>TaskFlow</span>
+          <span style={s.brandName}>TaskkFlow</span>
         </div>
 
         <div style={s.card}>
