@@ -123,7 +123,7 @@ function Login() {
 
         <div style={s.card}>
           <h1 style={s.title}>Welcome back</h1>
-          <p style={s.subtitle}>Sign in to your account to continue</p>
+          <p style={s.subtitle}>Sign in to your account to continue </p>
 
           <form onSubmit={handleSubmit} noValidate>
             {/* Email */}
