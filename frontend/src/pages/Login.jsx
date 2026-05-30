@@ -179,7 +179,7 @@ function Login() {
 
           <p style={s.footer}>
             Don't have an account?{" "}
-            <Link to="/register" style={s.link}>Create one</Link>
+            <Link to="/register" style={s.link}>Create One</Link>
           </p>
         </div>
       </div>
